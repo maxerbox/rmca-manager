@@ -1,0 +1,21 @@
+{
+  "name": "rmca-manager",
+  "description": "The tool to receive the temp from the RMCA Robot",
+  "main": "index.js",
+  "authors": [
+    "Simon Sassi <dualprodu@gmail.com>"
+  ],
+  "license": "ISC",
+  "homepage": "",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "golden-layout": "^1.5.9",
+    "chart.js": "^2.7.1"
+  }
+}

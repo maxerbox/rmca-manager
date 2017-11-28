@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Selectionner un périphérique</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0="
+        crossorigin="anonymous" />
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,700" rel="stylesheet">
+    <!-- Bulma Version 0.6.0 -->
+    <link rel="stylesheet" href="./assets/css/bulma.min.0.6.0.css"/>
+    <link rel="stylesheet" type="text/css" href="./assets/css/login.css">
+    <link href="./assets/css/noty.css" rel="stylesheet">
+</head>
+
+<body>
+    <section class="hero is-success is-fullheight">
+        <div class="hero-body">
+            <div id="connectionContainer" class="container has-text-centered">
+                <div class="column is-4 is-offset-4">
+                    <h3 class="title has-text-grey">Selectionner un périphérique bluetooth</h3>
+                    <p class="subtitle has-text-grey">Pour continuer, selectionner un périphérique</p>
+                    <div class="box">
+                        <figure class="avatar">
+                            <img src="./assets/img/logo.png">
+                        </figure>
+
+                        <form>
+                            <img class="loading_img" src="./assets/img/loading_home.gif">
+                            <p id="textSearch" class="subtitle has-text-grey">Recherche d'un périphérique...</p>
+                            <a class="button refresh">Rafraichir</a>
+                            <div class="field">
+                                <div class="control">
+                                    <select id="selectDevice" style="display: none" class="select input is-large">
+                                    </select>
+                                </div>
+                            </div>
+                            <a id="connectButton" style="visibility:hidden" class="button is-block is-info is-large">Lancer !</a>
+                        </form>
+                    </div>
+                    <p class="has-text-grey">
+                        <a href="../">Github</a>
+                    </p>
+                </div>
+            </div>
+            <div id="connectingContainer" style="display:none" class="container has-text-centered">
+                <h3 class="title has-text-grey">Etablissement de la connection....</h3>
+                <img src="./assets/img/loading_home.gif" class="loading_img">
+            </div>
+        </div>
+    </section>
+
+    <script>
+        if (typeof module === 'object') {
+            window.module = module;
+            module = undefined;
+        }
+    </script>
+    <script type="text/javascript" src="./assets/js/jquery-3.2.1.min.js"></script>
+    <script src="./assets/js/noty.min.js" type="text/javascript"></script>
+    <script>
+        if (window.module) module = window.module;
+    </script>
+
+    <script type="text/javascript">
+        window.onerror = message => {
+            new Noty({
+                text: message,
+                type: 'error',
+                theme: 'metroui',
+                timeout: 7000
+            }).show();
+        }
+        var devices = new Map()
+        const {
+            ipcRenderer
+        } = require('electron')
+        ipcRenderer.on("bt:found", deviceFound)
+        ipcRenderer.on("bt:connecting", showConnecting)
+        ipcRenderer.on("bt:error", onFail)
+        // ipcRenderer.on("bt:finished", onFinished)
+        // ipcRenderer.on("bt:searching", onSearching)
+        function onFinished() {
+            $('#textSearch').text("Recherche terminée")
+            console.log("Finit")
+        }
+
+        function onSearching() {
+            $('#textSearch').text("Recherche d'un périphérique...")
+            console.log("s")
+        }
+        $('.refresh').click(() => {
+            ipcRenderer.send('bt:refresh')
+            hideSelectionDevice()
+        })
+
+        function deviceFound(event, address, name) {
+            new Noty({
+                text: 'Périphérique trouvé: ' + name,
+                type: 'info',
+                theme: 'metroui',
+                timeout: 2000
+            }).show();
+            console.log("Device found: ", address, name)
+
+            devices.set(address, {
+                'address': address,
+                'name': name
+            })
+            if (!$('#selectDevice').is(":visible")) {
+                showSelectionDevice()
+            }
+            $('#selectDevice').append($('<option>', {
+                value: address,
+                text: name
+            }));
+        }
+
+        function showSelectionDevice() {
+            $('#selectDevice').slideDown(600)
+            $('#connectButton').css("visibility", "visible")
+            $('#connectButton').slideDown(600)
+        }
+
+        function hideSelectionDevice() {
+            if (!$('#selectDevice').is(":visible")) return
+            $('#selectDevice').hide(100)
+            $('#connectButton').css("visibility", "hidden")
+            $('#connectButton').hide(100)
+        }
+
+        function start() {
+            var selectedAddress = $('#selectDevice').val()
+            if (devices.has(selectedAddress)) {
+                ipcRenderer.send('bt:select', selectedAddress)
+            }
+        }
+
+        function showConnecting() {
+            $('#connectionContainer').hide(600)
+            $('#connectingContainer').show(600)
+        }
+
+        function hideConnecting() {
+            $('#connectionContainer').show(600)
+            $('#connectingContainer').hide(600)
+        }
+
+        function onFail(event, message) {
+            hideConnecting()
+            new Noty({
+                text: 'Erreur connection: ' + message,
+                type: 'error',
+                theme: 'metroui',
+                timeout: 4000
+            }).show();
+        }
+        $('#connectButton').click(start)
+        ipcRenderer.send('bt:ready')
+        /*setTimeout(showSelectionDevice, 2000)
+        setTimeout(showConnecting, 5000)
+        setTimeout(() => {
+            onFail(null, "erreur test")
+        }, 15000) */
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dashboard-RMCA Manager</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0="
+        crossorigin="anonymous" />
+    <!-- Bulma Version 0.6.0 -->
+    <link rel="stylesheet" href="./assets/css/bulma.css" />
+    <link rel="stylesheet" type="text/css" href="./assets/css/index.css">
+    <link rel="stylesheet" type="text/css" href="./assets/css/goldenlayout-base.css">
+    <link rel="stylesheet" type="text/css" href="./assets/css/goldenlayout-dark-theme.css">
+</head>
+
+<body>
+
+
+    <div class="container" style="display: none">
+        <div id="dashBoardContainer">
+            <h2>Bienvenue sur la panneau principal du RMCA Manager</h2>
+            <section class="info-tiles">
+                <div class="tile is-ancestor has-text-centered">
+                    <a class="tile is-parent draggableData" data-type="temperature" title="Température" unit="°C">
+                        <article class="tile is-child box">
+                            <p class="title" id="temperatureText" unit="°C">--°C</p>
+                            <p class="subtitle">Température</p>
+                        </article>
+                    </a>
+                    <a class="tile is-parent draggableData" data-type="battery" title="Batterie" unit="%">
+                        <article class="tile is-child box">
+                            <p class="title" id="batteryText" unit="%">--%</p>
+                            <p class="subtitle">Batterie</p>
+                        </article>
+                    </a>
+                    <a class="tile is-parent draggableData" data-type="direction" title="Direction" unit="°">
+                        <article class="tile is-child box">
+                            <p class="title" id="directionText" unit="°">--°</p>
+                            <p class="subtitle">Direction</p>
+                        </article>
+                    </a>
+                </div>
+            </section>
+            <h2>Pour créer un graphique, glisser déposer une des trois données que vous apercevez au dessus</h2>
+        </div>
+    </div>
+    <script>
+        if (typeof module === 'object') {
+            window.module = module;
+            module = undefined;
+        }
+    </script>
+    <script type="text/javascript" src="./bower_components/jquery/dist/jquery.min.js"></script>
+    <script type="text/javascript" src="./bower_components/golden-layout/dist/goldenlayout.min.js"></script>
+    <script src="./bower_components/chart.js/dist/Chart.min.js"></script>
+    <script>
+        if (window.module) module = window.module;
+    </script>
+
+    <script>
+        var startedTime = Date.now()
+        var samples = 100
+        var dataMap = {
+            temperature: [],
+            battery: [],
+            direction: []
+        }
+        var labelsgraphic = {
+            temperature: [],
+            battery: [],
+            direction: []
+        }
+        var charts = {
+            temperature: [],
+            battery: [],
+            direction: []
+        }
+        var animation = {
+            duration: 500 * 1.5,
+            easing: 'linear'
+        }
+
+        function dataReceived(event, type, value, time) {
+            var dataArray = dataMap[type]
+            if (dataArray) {
+                dataArray.push(value)
+                var labelArray = labelsgraphic[type]
+                labelArray.push((time - startedTime))
+                if (dataArray.length > samples) {
+                    dataMap[type].shift()
+                    labelsgraphic[type].shift()
+                }
+                $('#' + type + 'Text').text(value + $('#' + type + 'Text').attr('unit'))
+                update(type, {
+                    value: value,
+                    label: time - startedTime
+                })
+            }
+        }
+
+        function update(type, data) {
+            if (!charts[type]) return
+            charts[type].forEach(function (chart) {
+                if (!chart.isPaused) {
+                    if (chart.data.datasets[0].data.length > chart.samples) {
+                        chart.data.datasets[0].data.shift();
+                        chart.data.labels.shift();
+                    }
+                    chart.data.datasets[0].data.push(data.value)
+                    chart.data.labels.push(data.label)
+                    chart.update()
+                }
+            })
+        }
+        const { ipcRenderer} = require('electron')
+        ipcRenderer.on('data:received', dataReceived)
+        ipcRenderer.on('data:response', dataResponse)
+        ipcRenderer.send('data:request')
+        var config = {
+            settings: {},
+            dimensions: {
+                minItemHeight: 50,
+                minItemWidth: 50,
+            },
+            labels: {
+                close: 'Fermer',
+                maximise: 'Agrandir',
+                minimise: 'Reduire',
+                popout: 'Ouvrir dans une nouvelle fenêtre'
+            },
+            content: [{
+                type: 'row',
+                content: [{
+                    type: 'component',
+                    componentName: 'dashboard',
+                    title: 'Dashboard',
+                    componentState: {},
+                    isClosable: false
+                }]
+            }]
+        };
+        var myLayout = new GoldenLayout(config);
+        myLayout.registerComponent('dashboard', function (container, componentState) {
+            var sectionInfo = $('#dashBoardContainer').wrap('<div/>').parent()
+            container.getElement().html($(sectionInfo));
+            $('.draggableData', container.getElement()).each(function (index, element) {
+                var title = $(element).attr('title')
+                var config = {
+                    type: 'component',
+                    componentName: 'graphic',
+                    title: title,
+                    componentState: {
+                        dataType: $(element).attr('data-type'),
+                        title: title,
+                        unit: $(element).attr('unit')
+                    }
+                }
+                myLayout.createDragSource(element, config)
+            })
+        });
+        myLayout.registerComponent('graphic', function (container, componentState) {
+            container.getElement().html(
+                '<a class="button has-text-centered pauseGraphic"><i class="fa fa-pause" aria-hidden="true"></i></a><canvas class="graphicCanvas"></canvas>'
+            );
+            var canvas = $('canvas', container.getElement())[0]
+            var ctx = canvas.getContext('2d');
+            var chart = new Chart(ctx, {
+                // The type of chart we want to create
+                type: 'line',
+
+                // The data for our dataset
+                data: {
+                    labels: Array.from(labelsgraphic[componentState.dataType]),
+                    datasets: [{
+                        label: componentState.title,
+                        backgroundColor: 'rgba(255, 99, 132, 0.25)',
+                        borderColor: 'rgb(255, 99, 132)',
+                        borderWidth: 2,
+                        data: Array.from(dataMap[componentState.dataType]),
+                    }],
+                    lineTension: 0.25,
+                },
+
+                // Configuration options go here
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: animation,
+                    scales: {
+                        yAxes: [{
+                            scaleLabel: {
+                                display: true,
+                                labelString: componentState.unit
+                            }
+                        }],
+                        xAxes: [{
+                            scaleLabel: {
+                                display: true,
+                                labelString: 'ms'
+                            },
+                            ticks: {
+                                // Include a dollar sign in the ticks
+                                callback: function (value, index, values) {
+                                    return value + 'ms';
+                                }
+                            },
+                        }]
+                    }
+                }
+            });
+            var pauseButton = $('.pauseGraphic', container.getElement())[0]
+            $(pauseButton).click(function () {
+                if (chart.isPaused)
+                    chart.isPaused = false
+                else
+                    chart.isPaused = true
+            })
+            container.getElement().prepend(pauseButton)
+            chart.samples = samples
+            container.on('destroy', function () {
+                var array = charts[componentState.dataType]
+                array.splice(array.indexOf(chart), 1) //for memory leaks
+            })
+            charts[componentState.dataType].push(chart)
+        })
+        myLayout.on('stackCreated', function (stack) {
+            console.log(stack)
+        })
+
+        function dataResponse(event, dataMapReceived) {
+            for (i in dataMapReceived) {
+                var arrayType = dataMapReceived[i]
+                arrayType.slice(Math.max(arrayType.length - samples, 1)) // to handle a max of items
+                arrayType.forEach(function ({
+                    value: value,
+                    time: time
+                }) {
+                    dataMap[i].push(value)
+                    labelsgraphic[i].push((new Date(time - startedTime).getSeconds()))
+                })
+            }
+            myLayout.init();
+        }
+        /* myLayout.init();
+        setInterval(() => dataReceived(null, "temperature", Math.floor(Math.random() * 24) + 1, Date.now()), 250) */
+    </script>
+
+</body>
+
+</html>
