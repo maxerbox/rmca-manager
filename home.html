@@ -10,7 +10,7 @@
         crossorigin="anonymous" />
     <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,700" rel="stylesheet">
     <!-- Bulma Version 0.6.0 -->
-    <link rel="stylesheet" href="./assets/css/bulma.min.0.6.0.css"/>
+    <link rel="stylesheet" href="./assets/css/bulma.min.0.6.0.css" />
     <link rel="stylesheet" type="text/css" href="./assets/css/login.css">
     <link href="./assets/css/noty.css" rel="stylesheet">
 </head>
@@ -78,7 +78,17 @@
             ipcRenderer
         } = require('electron')
         ipcRenderer.on("bt:found", deviceFound)
-        ipcRenderer.on("bt:connecting", showConnecting)
+        ipcRenderer.on("bt:connected", () => {
+            new Noty({
+                text: 'Connecté',
+                type: 'info',
+                theme: 'metroui',
+                timeout: 2000
+            }).show();
+            setTimeout(() => {
+                window.location.href = 'index.html'
+            }, 2000)
+        })
         ipcRenderer.on("bt:error", onFail)
         // ipcRenderer.on("bt:finished", onFinished)
         // ipcRenderer.on("bt:searching", onSearching)
@@ -135,6 +145,8 @@
             var selectedAddress = $('#selectDevice').val()
             if (devices.has(selectedAddress)) {
                 ipcRenderer.send('bt:select', selectedAddress)
+                showConnecting()
+                
             }
         }
 

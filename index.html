@@ -81,7 +81,24 @@
             duration: 500 * 1.5,
             easing: 'linear'
         }
+        $(document).on('keyup', function (e) {
+            var tag = e.target.tagName.toLowerCase();
+            var command = null
+            if (e.which === 38)
+                command = 1
+            else if (e.which === 40)
+                command = 2
+            else if (e.which === 37)
+                command = 3
+            else if (e.which === 39)
+                command = 4
+            else if (e.which === 32)
+                command = 0
+            if (command)
+                ipcRenderer.send('robot:control', command)
+            console.log(command)
 
+        });
         function dataReceived(event, type, value, time) {
             var dataArray = dataMap[type]
             if (dataArray) {
@@ -114,9 +131,15 @@
                 }
             })
         }
-        const { ipcRenderer} = require('electron')
+        const { ipcRenderer } = require('electron')
+        const { status } = require('./lib/Constants.js')
         ipcRenderer.on('data:received', dataReceived)
         ipcRenderer.on('data:response', dataResponse)
+        ipcRenderer.on('bt:status', (e, currentStat) => {
+            console.log(currentStat)
+            if (currentStat === status.BT_FAILED)
+                window.location.href = 'home.html'
+        })
         ipcRenderer.send('data:request')
         var config = {
             settings: {},
